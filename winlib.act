@@ -154,7 +154,6 @@ MODULE
 ; Revised: 2021.01-Fix StrInv offset
 ;                  Fix StrAI group 3
 
-
 ; --------------------------------------
 ; Func..: StrInv(CHAR POINTER pS BYTE bS)
 ; Param.: pS=String to convert
@@ -264,7 +263,6 @@ SCopy(pS,pA)
 
 ; Set inc string pointer to new length
 pS(0)=bL
-
 RETURN
 
 ; --------------------------------------
@@ -293,10 +291,7 @@ OD
 
 ; Set string pointer length to new value
 pS(0)=bC
-
 RETURN
-
-MODULE
 
 ; Library: LIBWIN.ACT
 ; Desc...: Window Lirbary
@@ -951,7 +946,6 @@ else
   ; Else dont change it
   bR=bN
 fi
-
 RETURN(bR)
 
 ; -----------------------------------
@@ -976,7 +970,6 @@ DO
     RTCLK=0
   fi
 OD
-
 RETURN
 
 ; --------------------------------------
@@ -1063,7 +1056,6 @@ CARD FUNC WaitKCX(BYTE bI)
   ; Debounce key
   bRCH=KNONE
 RETURN(cB)
-
 MODULE
 
 ; Library: LIBGADGX.ACT
@@ -1161,9 +1153,7 @@ else
     WPrint(bN,x,y,"[ ]")
   fi
 fi
-
 RETURN(bR)
-
 
 ; --------------------------------------
 ; Func..: GRadio(byte bN,x,y,bD,bE,bI,bS CARD POINTER pA)
@@ -1259,9 +1249,7 @@ DO
     fi
   fi
 OD
-
 RETURN(bR)
-
 
 ; --------------------------------------
 ; Func..: GButton(byte bN,x,y,bD,bS CARD POINTER pA)
@@ -1341,9 +1329,7 @@ DO
     fi
   fi
 OD
-
 RETURN(bR)
-
 
 ; --------------------------------------
 ; Proc..: GAlert(CHAR POINTER pS)
@@ -1368,9 +1354,7 @@ WaitKCX()
 
 ; Close window
 WClose(bT)
-
 RETURN
-
 
 ; --------------------------------------
 ; Proc..: GProg(BYTE bN,x,y,bS)
@@ -1593,9 +1577,7 @@ OD
 ; Get display string and print
 SCopyS(cD,cE,1,bS)
 WPrint(bN,x,y,cD)
-
 RETURN(bR)
-
 
 ; --------------------------------------
 ; Func..: GSpin(BYTE bN,x,y,bL,bM,bP)
@@ -1668,11 +1650,7 @@ OD
 ; Redisplay value
 StrPad(cL,32,3)
 WPrint(bN,x,y,cL)
-
 RETURN(bR)
-
-
-MODULE
 
 ; Library: LIBMENUX.ACT
 ; Author.: Wade Ripkowski
@@ -1771,5 +1749,4 @@ BYTE FUNC MenuV(BYTE bN,x,y,bI,bD,bS CHAR POINTER pS)
     WPrint(bN,x,y+bL-1,cL)
   fi
 RETURN(bR)
-
 MODULE
