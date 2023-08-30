@@ -1,0 +1,1775 @@
+; Library: DEFINESX.ACT
+; Desc...: Global definitions-XL/XE
+; Author.: Wade Ripkowski
+; Date...: 2015.08
+; License: GNU General Public License v3.0
+; Revised: 2016.04.23 Add CINVSP
+;          2021.01    Add K-=+*,SPC,DEL
+;                     Add INS,KB_,KE_
+;                     Merge WINDEF defines
+;                     Add KTAB,MX*
+;                     Add GIN*
+;                     Add CRGT_I,KNOMAP
+;          2021.02    Consolidatation
+;          2022.07    Add function keys
+;                     Revise X* exit codes
+
+; Window Record and Memory alloc sizes
+DEFINE WRECSZ = "10"
+DEFINE WBUFSZ = "2968"
+
+; Booleans
+DEFINE TRUE  = "1"
+DEFINE FALSE = "0"
+
+; Window Flags
+DEFINE WON  = "1"
+DEFINE WOFF = "0"
+
+; Window Positioning
+DEFINE WPABS = "128"
+DEFINE WPTOP = "241"
+DEFINE WPBOT = "242"
+DEFINE WPLFT = "251"
+DEFINE WPRGT = "252"
+DEFINE WPCNT = "255"
+
+; Window Error Status
+DEFINE WENONE = "100"
+DEFINE WENOPN = "101"
+DEFINE WEUSED = "102"
+
+; Character Values
+DEFINE CCLS   = "$7D"
+DEFINE CDLN   = "$9C"
+DEFINE CUP    = "$1C"
+DEFINE CDN    = "$1D"
+DEFINE CLFT   = "$1E"
+DEFINE CRGT   = "$1F"
+DEFINE CRGT_I = "159"
+DEFINE CBUZ   = "$FD"
+DEFINE CINVSP = "$A0"
+
+; Keystroke Values (keycode)
+DEFINE KNOMAP = "199"
+DEFINE KNONE  = "255" 
+DEFINE KENTER = "12"
+DEFINE KDEL   = "52"
+DEFINE KDEL_C = "180"
+DEFINE KDEL_S = "116"
+DEFINE KINS   = "183"
+DEFINE KESC   = "28"
+DEFINE KINV   = "39"
+DEFINE KCAP   = "60"
+DEFINE KLEFT  = "134"
+DEFINE KRIGHT = "135"
+DEFINE KUP    = "142"
+DEFINE KDOWN  = "143"
+DEFINE KMINUS = "14"
+DEFINE KEQUAL = "15"
+DEFINE KPLUS  = "6"
+DEFINE KASTER = "7"
+DEFINE KSPACE = "33"
+DEFINE KTAB   = "44"
+DEFINE KTAB_S = "108"
+DEFINE KB_C   = "149"
+DEFINE KE_C   = "170"
+DEFINE KX     = "22"
+DEFINE KX_S   = "86"
+DEFINE KE_CS  = "234"
+DEFINE KS_CS  = "254"
+
+; Console Key Values
+DEFINE KCNON = "7"
+DEFINE KCSTA = "262"
+DEFINE KCSEL = "261"
+DEFINE KCOPT = "259"
+
+; Function Key Values
+DEFINE KFHLP = "17"
+DEFINE KF1   = "3"
+DEFINE KF2   = "4"
+DEFINE KF3   = "19"
+DEFINE KF4   = "20"
+
+; Gadget Flags
+DEFINE GDISP  = "0"
+DEFINE GEDIT  = "1"
+DEFINE GHORZ  = "1"
+DEFINE GVERT  = "2"
+DEFINE GCON   = "1"
+DEFINE GCOFF  = "2"
+DEFINE GANY   = "0"
+DEFINE GALNUM = "1"
+DEFINE GALPHA = "2"
+DEFINE GNUMER = "3"
+
+; Menu Exits
+DEFINE XESC  = "253"
+DEFINE XTAB  = "254"
+DEFINE XNONE = "255"
+
+MODULE
+
+; Library: DEFWIN.ACT
+; Desc...: Global Window definitions
+; Author.: Wade Ripkowski
+; Date...: 2016.04
+; License: GNU General Public License v3.0
+; Notes..: Requires DEFINES.ACT first!
+; Revised: 2021.01-Add WPLEFT/WPRIGHT
+;                      WPTOP/WPBOT
+;                 -Move defines to DEFINES.ACT
+
+; Window System Types & Variables
+
+; Window handle type definition
+TYPE WnREC=[BYTE bS,bX,bY,bW,bH,bI
+            CARD cM,cZ]
+
+; Virtual cursor type definition
+TYPE WnPOS=[BYTE vX,vY]
+
+; Virtual cursor var
+WnPOS vCur
+
+; Pointers for window handle and mem
+WnREC POINTER pWn
+CARD POINTER cpWM
+
+; Window handle and memory storage
+; 10 handles + 1 system handle
+BYTE ARRAY baW(110),baWM(WBUFSZ)
+
+; Screen memory vector
+CARD RSCRN=88
+
+MODULE
+
+; Library: LIBSTR.ACT
+; Author.: Wade Ripkowski
+; Date...: 2015.08
+; Desc...: String Routines
+; License: GNU General Public License v3.0
+; Revised: 2021.01-Fix StrInv offset
+;                  Fix StrAI group 3
+
+
+; --------------------------------------
+; Func..: StrInv(CHAR POINTER pS BYTE bS)
+; Param.: pS=String to convert
+;         bS=Size of string
+; Desc..: Inverses (video) a string       
+; --------------------------------------
+PROC StrInv(CHAR POINTER pS BYTE bS)
+  BYTE bL
+
+  ; Process each element
+  for bL=1 to bS 
+  DO
+    ; Add 128 to the value for inverse
+    pS(bL)==!128
+  OD
+RETURN
+
+; --------------------------------------
+; Func..: StrAI(CHAR POINTER pS)
+; Param.: pS=String to convert
+; Desc..: Converts ATASCII code to
+;         internal code      
+; Revise: 2021.01-Fix group 3 from 154 to 159
+; --------------------------------------
+PROC StrAI(CHAR POINTER pS)
+  BYTE bL
+
+  ; Process each element
+  for bL=1 to pS(0)
+  DO
+    if pS(bL)>=0 AND pS(bL)<=31 then
+      pS(bL)==+64
+    elseif pS(bL)>=32 AND pS(bL)<=95 then
+      pS(bL)==-32
+    elseif pS(bL)>=128 AND pS(bL)<=159 then
+      pS(bL)==+64
+    elseif pS(bL)>=160 AND pS(bL)<=223 then
+      pS(bL)==-32
+    fi
+  OD
+RETURN
+
+; --------------------------------------
+; Func..: StrIA(CHAR POINTER pS)
+; Param.: pS=String to convert
+; Desc..: Converts internal code to
+;         ATASCII code
+; --------------------------------------
+PROC StrIA(CHAR POINTER pS)
+  BYTE bL
+
+  ; Process each element
+  for bL=1 to pS(0)
+  DO
+    if pS(bL)>=0 AND pS(bL)<=63 then
+      pS(bL)==+32
+    elseif pS(bL)>=64 AND pS(bL)<=95 then
+      pS(bL)==-64
+    elseif pS(bL)>=128 AND pS(bL)<=154 then
+      pS(bL)==+32
+    elseif pS(bL)>=160 AND pS(bL)<=191 then
+      pS(bL)==+32
+    elseif pS(bL)>=192 AND pS(bL)<=223 then
+      pS(bL)==-64
+    fi
+  OD
+RETURN
+
+; --------------------------------------
+; Func..: SubStr(CHAR ARRAY cB,cE BYTE bN,bS)
+; Param.: cB=From String
+;         cE=To String
+;         bN=Start Position
+;         bS=Number of Chars to copy
+; Desc..: Get sub-string of string
+; --------------------------------------
+PROC SubStr(CHAR ARRAY cB,cE BYTE bN,bS)
+  BYTE bL=[0]
+
+  FOR bL=1 to bS
+  DO
+    cE(bL)=cB(((bN-1)*bS)+bL)
+  OD
+
+  cE(0)=bS
+RETURN
+
+; --------------------------------------
+; Proc..: StrPad(CHAR POINTER ps CHAR bc BYTE bL)
+; Param.: pS=Pointer to string to pad
+;         bC=Character to pad with
+;         bL=Length to pad to
+; Desc..: Left pads a string with a char
+; Notes.: Max of 10 in length.
+; --------------------------------------
+PROC StrPad(CHAR POINTER pS CHAR bC BYTE bL)
+CHAR ARRAY pA="          "
+
+; Fill the temp string with char
+SetBlock(pA+1,10,bC)
+
+; Copy inc string into temp string
+SAssign(pA,pS,bL-pS(0)+1,bL)
+
+; Copy padded temp string to inc string
+SCopy(pS,pA)
+
+; Set inc string pointer to new length
+pS(0)=bL
+
+RETURN
+
+; --------------------------------------
+; Proc..: StrTrim(CHAR POINTER ps)
+; Param.: pS=Pointer to string to trim
+; Desc..: Trims space from string end
+; --------------------------------------
+PROC StrTrim(CHAR POINTER pS)
+BYTE bL,bC
+
+; Set counter to end of string
+bL=pS(0)
+
+; Loop from string end to start
+while bL>=1
+DO        
+  ; If char is space, set len to curr-1 
+  if pS(bL)=32 then
+    bC=bL-1
+  else
+    exit
+  fi
+
+  bL==-1
+OD
+
+; Set string pointer length to new value
+pS(0)=bC
+
+RETURN
+
+MODULE
+
+; Library: LIBWIN.ACT
+; Desc...: Window Lirbary
+; Author.: Wade Ripkowski
+; Date...: 2016.04
+; License: GNU General Public License v3.0
+; Note...: Requires DEFWIN.ACT first!
+; Revised: 2021.01.06-Fix pointers (CHAR)
+;                    -Fix StrInv calls
+;          2021.01.20-Fix WPrint buffer size
+;          2021.02.01-Add WDiv
+;                     Add WPCENT to WOrn
+
+MODULE
+
+; --------------------------------------
+; Proc..: WInit()
+; Desc..: Initializes windowing system.
+; --------------------------------------
+PROC WInit()
+  BYTE bL
+
+  ; Setup cursor and screen
+  Poke(752,1)
+  Poke(82,0)
+  Position(0,0)
+  Put($7D)
+
+  ; Clear window memory
+  Zero(baWM,WBUFSZ)
+
+  ; Set index into window memory
+  cpWM=baWM
+
+  ; Work on 10 window+system handles
+  for bL=0 to 10
+  DO
+    ; Find windows handle location
+    pWn=baW+(WRECSZ*bL)
+
+    ; Clear handle record vars
+    pWn.bS=WOFF
+    pWn.bX=0
+    pWn.bY=0
+    pWn.bW=0
+    pWn.bH=0
+    pWn.bI=WOFF
+    pWn.cM=baWM  ; point at base storage
+    pWn.cZ=0
+  OD
+
+  ; Set virtual cursor coords
+  vCur.vX=0
+  vCur.vY=0
+RETURN
+
+; --------------------------------------
+; Proc..: WBack(BYTE bN)
+; Desc..: Set screen background
+; Param.: bN = background char (internal)
+; Notes.: WBNONE for empty backgound
+; --------------------------------------
+PROC WBack(BYTE bN)
+  ; Set background
+  SetBlock(RSCRN,960,bN)
+RETURN
+
+; --------------------------------------
+; Func..: BYTE WOpen(BYTE x,y,w,h,bT)
+; Desc..: Opens new window
+; Params: x = column
+;         y = row
+;         w = width
+;         h = height
+;         bT = display in inverse
+;              WINVON/WINVOFF
+; Return: Window handle number
+;         >100 on error
+; Notes.: cL is manipulated as byte store,
+;         not a string. (0) is data not size.
+; --------------------------------------
+BYTE FUNC WOpen(BYTE x,y,w,h,bT)
+  BYTE bR,bL,bD,bC
+  CHAR ARRAY cL(40)
+  CHAR POINTER pS
+
+  ; Set default return code
+  bR=WENONE
+
+  ; Cycle through handles (excl system)
+  for bL=0 to 9
+  DO
+    ; Find window handle record
+    pWn=baW+(WRECSZ*bL)
+
+    ; If handle record not in use
+    if pWn.bS=WOFF then
+      ; Set handle record in use
+      pWn.bS=WON
+
+      ; Set storage address and size
+      pWn.cM=cpWM
+      pWn.cZ=w*h
+
+      ; Set other handle record vars
+      pWn.bX=x
+      pWn.bY=y
+      pWn.bW=w
+      pWn.bH=h
+      pWn.bI=bT
+
+      ; Find top left corner of window
+      ; in screen memory
+      pS=RSCRN+(y*40)+x
+
+      ; Draw window
+      for bD=0 to h-1
+      DO
+        ; Build window line as string
+        ; (internal char codes)
+        ; Top or bottom line "+-+"
+        if bD=0 or bD=h-1 then
+          ; Set solid line -
+          SetBlock(cL,w,82)
+
+          ; Top line corners
+          if bD=0 then
+            cL(0)=81
+            cL(w-1)=69
+          ; Bottom line corners
+          else
+            cL(0)=90
+            cL(w-1)=67
+          fi
+        ; Middle line "| |"
+        else
+          ; Set space and sides
+          SetBlock(cL,w,0)
+          cL(0)=124
+          cL(w-1)=124
+        fi
+
+        ; If inverse flag, flip line
+        if bT=WON then
+          for bC=0 to w-1
+          DO
+            cL(bC)==!128
+          OD
+        fi
+
+        ; Save underlying scrn to win mem
+        MoveBlock(cpWM,pS,w)
+        ; Inc mem ptr index by width
+        cpWM==+w
+        ; Move line to screen
+        MoveBlock(pS,cL,w)
+        ; Inc scr by 40 to next line start
+        pS==+40
+      OD
+
+      ; Set return to handle number
+      bR=bL
+
+      ; Exit loop
+      EXIT
+    fi
+  OD
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WClose(BYTE bN)
+; Desc..: Closes a window
+; Params: bN = number of window handle
+; Return: 0 if success
+;         >100 on error
+; --------------------------------------
+BYTE FUNC WClose(BYTE bN)
+  BYTE bR,bL
+  CHAR POINTER pS,pA
+
+  ; Set default return code
+  bR=WENOPN
+
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+
+  ; Only if handle in use
+  if pWn.bS#WOFF then
+    ; Find top left corner of window
+    ; in screen memory
+    pS=RSCRN+(pWn.bY*40)+pWn.bX
+
+    ; Set temp ptr to start of win mem
+    pA=pWn.cM
+
+    ; Restore screen line by line
+    for bL=0 to pWn.bH-1
+    DO
+      ; Restore underlying scrn from win mem
+      MoveBlock(pS,pA,pWn.bW)
+      ; Inc mem ptr index by width
+      pA==+pWn.bW
+      ; Inc scr by 40 to next line start
+      pS==+40
+    OD
+
+    ; Clear window memory
+    Zero(pWn.cM,pWn.cZ)
+
+    ; Set win mem ptr to prev location
+    cpWM==-pWn.cZ
+
+    ; Clear handle
+    pWn.bS=WOFF
+    pWn.bX=0
+    pWn.bY=0
+    pWn.bW=0
+    pWn.bH=0
+    pWn.bI=WOFF
+    pWn.cM=baWM  ; point at base storage
+    pWn.cZ=0
+
+    ; Set return
+    bR=0
+  fi
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WStat(BYTE bN)
+; Desc..: Tests if window handle is open
+; Params: bN = number of window handle
+; Return: WSUSED (in use) or
+;         WSFREE (not used)
+; --------------------------------------
+BYTE FUNC WStat(BYTE bN)
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+RETURN(pWn.bS)
+
+; --------------------------------------
+; Func..: BYTE WPos(BYTE bN,x,y)
+; Desc..: Moves cursor to x,y in window
+;         or x,y of screen
+; Params: bN = number of window handle
+;             or WPABS for screen
+;         x = column for cursor
+;         y = row for cursor
+; Return: WSUSED (in use) or
+;         WSFREE (not used)
+; Revisd: 2021.01-Add position move
+; --------------------------------------
+BYTE FUNC WPos(BYTE bN,x,y)
+  BYTE bR
+
+  ; Set valid return
+  bR=0
+
+  ; If absolute mode
+  if bN=WPABS then
+    ; Set screen coords
+    vCur.vX=x
+    vCur.vY=y
+  else
+    ; Find window handle record
+    pWn=baW+(WRECSZ*bN)
+
+    ; Only if handle in use
+    if pWn.bS#WOFF then
+      ; Set relative to window
+      vCur.vX=pWn.bX+x
+      vCur.vY=pWn.bY+y
+    else
+      ; Set not open return code
+      bR=WENOPN
+    fi
+  fi                       
+
+  ; Move actual cursor
+  Position(vCur.vX,vCur.vY)
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WPut(BYTE bN,x)
+; Desc..: Puts byte x in window
+;         at virtual cursor coord
+; Params: bN = number of window handle
+;         x = ATA byte to display
+; Return: WSUSED (in use) or
+;         WSFREE (not used)
+; --------------------------------------
+BYTE FUNC WPut(BYTE bN,x)
+  BYTE bR
+  CHAR ARRAY bC(2)
+  CHAR POINTER pS
+
+  ; Set default return
+  bR=WENOPN
+
+  ; Convert passed byte into string
+  bC(0)=1
+  bC(1)=x
+
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+
+  ; Only if handle in use
+  if pWn.bS#WOFF then
+    ; Convert byte from ATA to INT
+    StrAI(bC)
+
+    ; If window is inverse, flip byte
+    if pWn.bI=WON then
+      bC(1)==!128
+    fi
+
+    ; Find screen loc based on vCur
+    pS=RSCRN+(vCur.vY*40)+vCur.vX
+
+    ; Move byte to screen
+    ; pS^=bC(1)
+    MoveBlock(pS,bC+1,1)
+
+    ; Inc virtual cur by 1
+    vCur.vX==+1
+
+    ; Set return code
+    bR=0
+  fi
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WOrn(BYTE bN,bT,bL CHAR POINTER pS)
+; Desc..: Add ornament decor to window
+; Params: bN = Number of window handle
+;         bT = Top or bottom (WPTOP/WPBOT)
+;         bL = Position (WPLEFT/WPRIGHT/WPCENT)
+;         pS = Display string pointer
+; Return: 0 if success
+;         >100 on error
+; Notes.: Max 36 for frame and bookends
+; --------------------------------------
+BYTE FUNC WOrn(BYTE bN,bT,bL CHAR POINTER pS)
+  BYTE bR
+  CHAR ARRAY cL(36)
+  CHAR POINTER cS
+
+  ; Set default return code
+  bR=WENOPN
+
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+
+  ; Only if handle in use
+  if pWn.bS=WON then
+    ; Create footer string
+    ; Copy string
+    SCopy(cL+1,pS)
+    ; Set open bookend
+    cL(1)=4
+    ; Set close bookend
+    cL(pS(0)+2)=1
+    ; Set string len to include bookends
+    cL(0)=pS(0)+2
+
+    ; Convert from ATA to INT
+    StrAI(cL)
+
+    ; If inverse on, inverse all
+    if pWn.bI=WON then
+      StrInv(cL,cL(0))
+    ; Else inverse off, inverse only text
+    else
+      ; Skip first 1b (bookend)
+      ; Skip last 1b (bookend)
+      StrInv(cL+1,cL(0)-2)
+    fi
+
+    ; Find base location of window
+    cS=RSCRN+(pWn.bY*40)
+
+    ; If bottom find lower location
+    if bT=WPBOT then
+      cS==+((pWn.bH-1)*40)
+    fi
+
+    ; If left, add 1 (corner)
+    if bL=WPLFT then
+      cS==+pWn.bX+1
+
+    ; If right, add x + width - length - 3
+    elseif bL=WPRGT then
+      cS==+pWn.bX+pWn.bW-pS(0)-3
+
+    ; Else center
+    else
+      cS==+pWn.bX+((pWn.bW-cL(0))/2)
+    fi
+
+    ; Move title to screen
+    MoveBlock(cS,cL+1,cL(0))
+
+    ; Set valid return
+    bR=0
+  fi
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WTitle(BYTE bN
+;                     CHAR POINTER pS)
+; Desc..: Add title decor to window
+; Params: bN = number of window handle
+;         pS = Title string pointer
+; Return: 0 if success
+;         >100 on error        
+; Notes.: Max 36 for frame and bookends
+;         2021.01-Deprecated: Use WOrn
+; --------------------------------------
+BYTE FUNC WTitle(BYTE bN CHAR POINTER pS)
+RETURN(WOrn(bN,WPTOP,WPLFT,pS))
+
+; --------------------------------------
+; Func..: BYTE WPrint(BYTE bN,x,y
+;                     CHAR POINTER pS)
+; Desc..: Print text in window at pos
+; Params: bN = number of window handle
+;         x = column to print at
+;         y = row to print at
+;         pS = Text string pointer
+; Notes.: Prints max 38 chars for frame
+;         Accepts max of 128 chars
+; Return: 0 if success
+;         >100 on error
+; --------------------------------------
+BYTE FUNC WPrint(BYTE bN,x,y CHAR POINTER pS)
+  BYTE bR
+  CHAR ARRAY cL(129)
+  CHAR POINTER cS
+
+  ; Set default return code
+  bR=WENOPN
+
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+
+  ; Only if handle in use
+  if pWn.bS#WOFF then
+    ; Copy string to line buffer
+    SCopy(cL,pS)
+
+    ; Ensure text wont overrun
+    ; Check len not > width-x-1
+    ; x is column offset
+    ; width inc frames, remove 1
+    ; instead of 2 due to x as 1 based
+    if cL(0) > pWn.bW-x-1 then
+      cL(0)=pWn.bW-x-1
+    fi
+
+    ; Convert from ATA to INT
+    StrAI(cL)
+
+    ; Make inverse if ON
+    if pWn.bI=WON then
+      ; Always inverse title text
+      StrInv(cL,cL(0))
+    fi
+
+    ; Find top left corner of window
+    ; in screen memory (inside frame)
+    cS=RSCRN+(pWn.bY*40)+pWn.bX
+
+    ; Add 40 for each row (Y)
+    cS==+(y*40)
+
+    ; If not center, move to pos
+    if x#WPCNT then
+      ; Add x for column
+      cS==+x
+
+    ; Else move to centered position
+    else
+      ; Add width-length/2 for centered x.
+      cS==+((pWn.bW-cL(0))/2)
+    fi
+
+    ; Move it to screen, skip len byte
+    MoveBlock(cS,cL+1,cL(0))
+
+    ; Set valid return
+    bR=0
+  fi
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WClr(BYTE bN)
+; Desc..: Clears window contents
+; Params: bN = number of window handle
+; Return: 0 if success
+;         >100 on error
+; --------------------------------------
+BYTE FUNC WClr(BYTE bN)
+  BYTE bR,bL
+  CHAR ARRAY cL(38)
+  CHAR POINTER cS
+
+  ; Set default return code
+  bR=WENOPN
+
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+
+  ; Only if handle in use
+  if pWn.bS=WON then
+    ; Find top left corner of window
+    ; in screen memory (inside frame)
+    cS=RSCRN+(pWn.bY*40)+pWn.bX+41
+
+    ; Make line empty
+    SetBlock(cL,pWn.bW-2,0)
+
+    ; If inverse flip line
+    if pWn.bI=WON then
+      StrInv(cL,pWn.bW-2)
+    fi
+
+    ; Clear window line by line
+    for bL=1 to pWn.bH-2
+    DO
+      ; Restore underlying scrn from win mem
+      MoveBlock(cS,cL,pWn.bW-2)
+      ; Inc scr by 40 to next line start
+      cS==+40
+    OD
+
+    ; Set return
+    bR=0
+  fi
+RETURN(bR)
+
+; --------------------------------------
+; Func..: BYTE WDiv(BYTE bN,y,bD)
+; Desc..: Add or remove divider
+; Params: bN = Number of window handle
+;         y = Which row for divider
+;         bD = Display On/Off indicator
+; Return: 0 if success
+;         >100 on error
+; --------------------------------------
+BYTE FUNC WDiv(BYTE bN,y,bD)
+  BYTE bR,bE
+  CHAR ARRAY cL(40)
+  CHAR POINTER cS
+
+  ; Set default return code
+  bR=WENOPN
+
+  ; Find window handle record
+  pWn=baW+(WRECSZ*bN)
+
+  ; Only if handle in use
+  if pWn.bS=WON then
+    ; Get window width
+    bE=pWn.bW
+
+    ; Create divider string
+
+    ; If turning on, set ornaments
+    if bD=WON then
+      ; Set solid line
+      SetBlock(cL,bE,82)
+      ; Set left 
+      cL(1)=65
+      ; Set right
+      cL(bE)=68
+    else
+      ; Set blank line
+      SetBlock(cL,bE,0)
+      ; Set left 
+      cL(1)=124
+      ; Set right
+      cL(bE)=124
+    fi
+
+    ; Set string len to width of window
+    cL(0)=bE
+
+    ; If inverse on, inverse all
+    if pWn.bI=WON then
+      StrInv(cL,cL(0))
+    fi
+
+    ; Find base location of window
+    cS=RSCRN+((pWn.bY+y)*40)+pWn.bX
+
+    ; Move to screen
+    MoveBlock(cS,cL+1,cL(0))
+
+    ; Set valid return
+    bR=0
+  fi
+RETURN(bR)
+
+; Library: LIBMISCX.ACT
+; Author.: Wade Ripkowski
+; Desc...: Misc Routines-XL/XE
+; Date...: 2015.08
+; License: GNU General Public License v3.0
+; Revised: 2021.01-Add IKC2ATA
+;                 -Add Wait
+;          2022.07-Add WaitKCX
+
+; Requires DEFINESX.ACT be loaded 1st!
+
+; --------------------------------------
+; Func..: IKC2ATA(BYTE bN)
+; Desc..: Converts internal key code
+;         to atascii
+; Params: bN = Internal code
+; Return: ATASCII code for IKC<192
+;         bN for IKC>191
+;         199 for no mapping 
+; Notes.: Does not change if IKC>191
+; -------------------------------------- 
+BYTE FUNC IKC2ATA(BYTE bN)
+CHAR ARRAY cL(192)=[
+  108 106  59 199 199 107  43  42 111 199
+  112 117 155 105  45  61 118 199  99 199
+  199  98 120 122  52 199  51  54 199  53
+   50  49  44  32  46 110 199 109  47 199
+  114 199 101 121 199 116 119 113  57 199
+   48  55 199  56  60  62 102 104 100 199
+  199 103 115  97  76  74  58 199 199  75
+   92  94  79 199  80  85 199  73  95 124
+   86 199  67 199 199  66  88  90  36 199
+   35  38 199  37  34  33  91  32  93  78
+  199  77  63 199  82 199  69  89 199  84
+   87  81  40 199  41  39 199  64 199 199
+   70  72  68 199 199  71  83  65  12  10
+  123 199 199  11 199 199  15 199  16  21
+  199   9 199 199  22 199   3 199 199   2
+   24  26 199 199 199 199 199 199 199 199
+  199 199  96  14 199  13 199 199  18 199
+    5  25 199  20  23  17 199 199 199 199
+  199 199 199 199   6   8   4 199 199   7
+   19   1 ]
+BYTE bR
+
+; Get atascii from array if icode<192
+if bN<192 then
+  bR=cL(bN)
+else
+  ; Else dont change it
+  bR=bN
+fi
+
+RETURN(bR)
+
+; -----------------------------------
+; Proc..: Wait(BYTE bN)
+; Param.: bN = Number of seconds
+; Desc..: Waits bN seconds
+; -----------------------------------
+PROC Wait(BYTE bN)
+BYTE RTCLK=20,bS
+
+; Reset jiffy and second counters
+RTCLK=0
+bS=0
+   
+; Loop until second counter hits bN
+while bS<bN
+DO
+  ; If RTCLK >= 60. jiffy=1/60 second
+  if RTCLK>=60 then
+    ; Increment second counter, reset clock
+    bS==+1
+    RTCLK=0
+  fi
+OD
+
+RETURN
+
+; --------------------------------------
+; Func..: WaitYN(BYTE bE)
+; Param.: bE=1 to print Y or N
+; Return: BYTE (1=Y,0=N)
+; Desc..: Waits for Y or N keypress
+; --------------------------------------
+BYTE FUNC WaitYN(BYTE bE)
+  BYTE bRCH=764,bR=[0],bK=[0]
+
+  DO
+    ; Wait for any keypress
+    WHILE bRCH=KNONE DO OD
+
+    ; Key keypress and reset debounce
+    bK=bRCH
+    bRCH=KNONE
+  ; Stay in loop until YyNn
+  UNTIL bK=43 OR bK=107 OR
+        bK=35 OR bK=99
+  OD
+
+  ; If Yy then set return 1
+  if bK=43 OR bK=107 then
+    bR=1
+  fi
+
+  ; If echo on
+  if bE=1 then
+    ; If Y, print Y
+    if bR=1 then
+      Put('Y)
+    ; Else print N
+    else
+      Put('N)
+    fi
+  fi
+RETURN(bR)
+
+; --------------------------------------
+; Func..: WaitKCX(BYTE bI)
+; Param.: bI=TRUE allow inverse toggle
+; Return: CARD=keycode pressed
+; Desc..: Waits for any key, help key,
+;         or console key press.
+; Notes.: XL/XE only
+; --------------------------------------
+CARD FUNC WaitKCX(BYTE bI)
+  BYTE bRCH=764,bRCO=53279,bHLP=732,bINV=694,bCAP=702
+  CARD cB=[0]
+              
+  ; Wait for key
+  WHILE bRCH=KNONE AND bRCO=KCNON AND bHLP=0
+  DO OD 
+
+  ; Process console key
+  if bRCO#KCNON then
+    cB=bRCO+256
+
+  ; Process help key, must debounce
+  elseif bHLP>0 then
+    cB=KFHLP
+    bHLP=0
+
+  ; Toggle caps
+  elseif bRCH=KCAP then
+    cB=bRCH
+    bCAP=bCAP!64
+
+  ; Toggle inverse
+  elseif bRCH=KINV then
+    cB=bRCH
+    ; Toggle if allowed
+    if bI=TRUE then
+      bINV=bINV!128
+    fi
+
+  ; All else
+  else
+    cB=bRCH
+  fi
+
+  ; Debounce key
+  bRCH=KNONE
+RETURN(cB)
+
+MODULE
+
+; Library: LIBGADGX.ACT
+; Author.: Wade Ripkowski
+; Desc...: Gadget Routines-XL/XE
+; Date...: 2016.04
+; License: GNU General Public License v3.0
+; Revised: 2021.01.05 Add -= to MenuV nav
+;          2021.01.16 Add GAlert,GInput
+;          2021.01.27 Add GRadio
+;          2021.01.28 Add GCheck
+;          2022.07.17 Add GSpin
+;          2022.07.18 Use WaitKCX
+
+; Requires DEFINESX.ACT be loaded 1st!
+; Requires LIBSTR.ACT be loaded 1st!
+; Requires LIBWIN.ACT be loaded 1st!
+
+
+; --------------------------------------
+; Func..: GCheck(byte bN,x,y,bI,bD)
+; Desc..: Displays check box and gets choice
+; Params: bN = Window handle number
+;         x = Column of window to place check
+;         y = Row of window
+;         bI = Display only indicator
+;         bD = Default (initial value)
+; Req...: LIBWIN.ACT
+;         LIBSTR.ACT
+; -------------------------------------- 
+BYTE FUNC GCheck(BYTE bN,x,y,bI,bD)
+BYTE bR,bK,bC
+
+; Set return and current value to default passed
+bR=bD
+bC=bD
+
+; Loop until exit
+DO
+  ; If current then add pointer, else space
+  if bC=GCON then
+    WPrint(bN,x,y,"[X]")
+  else
+    WPrint(bN,x,y,"[ ]")
+  fi
+
+  ; If display only, just exit
+  if bI=GDISP then
+    exit
+  else
+    ; Get a keystroke
+    bK=WaitKCX()
+
+    ; Process keystroke
+    if bK=KESC then
+      bR=XESC
+      exit
+
+    elseif bK=KTAB then
+      bR=XTAB
+      exit
+
+    elseif bK=KSPACE or bK=KX or bK=KX_S then
+      ; Toggle value
+      if bC=GCON then
+        bC=GCOFF
+      else
+        bC=GCON
+      fi  
+
+      bR=bC
+      exit
+
+    elseif bK=KENTER then
+      ; Set return current check value
+      bR=bC
+      exit
+    fi
+  fi
+OD
+
+; If current and return are same
+if bR=bC then
+  ; Show exit value
+  if bR=GCON then
+    WPrint(bN,x,y,"[X]")
+  else                  
+    WPrint(bN,x,y,"[ ]")
+  fi
+else
+  ; Show default value (no change)
+  if bD=GCON then
+    WPrint(bN,x,y,"[X]")
+  else
+    WPrint(bN,x,y,"[ ]")
+  fi
+fi
+
+RETURN(bR)
+
+
+; --------------------------------------
+; Func..: GRadio(byte bN,x,y,bD,bE,bI,bS CARD POINTER pA)
+; Desc..: Displays radio buttons and gets choice
+; Params: bN = Window handle number
+;         x = Column of window to place buttons
+;         y = Row of window
+;         bD = direction of button placement
+;         bE = Edit or display indicator
+;              0 to display and exit
+;         bI = Initial selected button
+;         bS = Number of buttons
+;         pA = Ragged array pointer
+; Req...: LIBWIN.ACT
+;         LIBSTR.ACT
+; -------------------------------------- 
+BYTE FUNC GRadio(BYTE bN,x,y,bD,bE,bI,bS CARD POINTER pA)
+BYTE bR,bL,bK,bC,xp,yp
+CHAR POINTER pS
+
+; Set return and current button to default passed
+bR=bI
+bC=bI
+
+; Loop until exit
+DO
+  ; Set drawing position offsets
+  xp=0
+  yp=0
+
+  ; Display buttons
+  for bL=1 to bS
+  DO
+    ; If current then add pointer, else space
+    if bL=bC and bE#GDISP then
+      WPos(bN,x+xp,y+yp)
+      WPut(bN,CRGT_I)
+    else
+      WPrint(bN,x+xp,y+yp," ")
+    fi
+
+    ; If selected then add fill, else unfilled
+    if bL=bR then
+      WPrint(bN,x+xp+1,y+yp,"?")
+    else
+      WPrint(bN,x+xp+1,y+yp,"o")
+    fi
+
+    ; Display button name itself
+    WPrint(bN,x+xp+3,y+yp,pA(bL-1))
+
+    ; Compute button position
+    if bD=GHORZ then
+      pS=pA(bL-1)
+      ; Increase X display position
+      xp==+(pS(0)+4)
+    else
+      ; Increase Y display position
+      yp==+1
+    fi        
+  OD
+
+  ; If initial item is 0, just exit
+  if bE=GDISP then
+    exit
+  else
+    ; Get a keystroke
+    bK=WaitKCX()
+
+    ; Process keystroke
+    if bK=KLEFT or bK=KPLUS or bK=KUP or bK=KMINUS then
+      bC==-1
+      if bC<1 then bC=bS fi
+
+    elseif bK=KRIGHT or bK=KASTER or bK=KDOWN or bK=KEQUAL then
+      bC==+1
+      if bC>bS then bC=1 fi
+
+    elseif bK=KESC then
+      bR=XESC
+      exit
+
+    elseif bK=KTAB then
+      bR=XTAB
+      exit
+
+    elseif bK=KSPACE then
+      bR=bC
+
+    elseif bK=KENTER then
+      bR=bC
+      exit
+    fi
+  fi
+OD
+
+RETURN(bR)
+
+
+; --------------------------------------
+; Func..: GButton(byte bN,x,y,bD,bS CARD POINTER pA)
+; Desc..: Displays buttons and gets choice
+; Params: bN = Window handle number
+;         x = Column of window to place buttons
+;         y = Row of window
+;         bD = Initial selected button
+;              0 to display and exit
+;         bS = Number of buttons
+;         pA = Ragged array pointer
+; Note..: Button ornaments should be defined
+;         in strings.
+; Req...: LIBWIN.ACT
+;         LIBSTR.ACT
+; -------------------------------------- 
+BYTE FUNC GButton(BYTE bN,x,y,bD,bS CARD POINTER pA)
+BYTE bR,bL,bK,bP
+CHAR POINTER pS
+CHAR ARRAY cL(39)
+
+; Set default button to start
+bR=bD
+
+; Loop until exit
+DO
+  ; Set drawing position offset
+  bP=0
+
+  ; Display buttons
+  for bL=1 to bS
+  DO
+    ; Set string pointer to current array element addr
+    pS=pA(bL-1)
+   
+    ; Copy button to buffer and restore string
+    SCopy(cL,pS)
+
+    ; If this is the selected item, inverse it
+    if bR=bL then
+      StrInv(cL,cL(0))
+    fi
+
+    ; Display button
+    WPrint(bN,x+bP,y,cL)
+            
+    ; Increase display position
+    bP==+pS(0)
+  OD
+
+  ; If display item is 0, just exit
+  if bD=GDISP then
+    exit
+  else
+    ; Get a keystroke
+    bK=WaitKCX()
+
+    ; Process keystroke
+    if bK=KLEFT or bK=KPLUS or bK=KUP or bK=KMINUS then
+      bR==-1
+      if bR<1 then bR=bS fi
+
+    elseif bK=KRIGHT or bK=KASTER or bK=KDOWN or bK=KEQUAL then
+      bR==+1
+      if bR>bS then bR=1 fi
+
+    elseif bK=KESC then
+      bR=XESC
+      exit
+
+    elseif bK=KTAB then
+      bR=XTAB
+      exit
+
+    elseif bK=KENTER then
+      exit
+    fi
+  fi
+OD
+
+RETURN(bR)
+
+
+; --------------------------------------
+; Proc..: GAlert(CHAR POINTER pS)
+; Desc..: Displays centered alert on screen
+; Params: pS = Message string
+;              38 characters max
+; -------------------------------------- 
+PROC GAlert(CHAR POINTER pS)
+BYTE bT,x
+
+; Find left window position
+x=((38-pS(0))/2)
+
+; Show window
+bT=WOpen(x, 9, pS(0)+2, 4, WOFF)
+WTitle(bT, "Alert")
+WPrint(bT, WPCNT, 1, pS) 
+WPrint(bT, WPCNT, 2," OK ")
+
+; Wait for key
+WaitKCX()
+
+; Close window
+WClose(bT)
+
+RETURN
+
+
+; --------------------------------------
+; Proc..: GProg(BYTE bN,x,y,bS)
+; Desc..: Displays progress bar
+; Params: bN = number of window handle
+;         x = column for cursor
+;         y = row for cursor
+;         bS = bar size (pct complete)
+; --------------------------------------
+PROC GProg(BYTE bN,x,y,bS)
+  INT bL
+  CHAR ARRAY cL(21),cB(21)
+
+  ; Set default and block lines
+  SCopy(cL,"                    ")
+
+  ; Update bar contents
+  ; Div by 5 since bar is 1/5 100
+  for bL=1 to bS/5
+  DO
+    cL(bL)=CINVSP
+  OD
+
+  ; Display new bar
+  WPrint(bN,x,y,cL)
+RETURN
+
+
+; --------------------------------------
+; Func..: GInput(byte bN,x,y,bT,bS CHAR POINTER pS)
+; Desc..: Gets string
+; Params: bN = Window handle number
+;         x = Column of window to start get
+;         y = Row of window
+;         bT = Allowed character type
+;         bS = Display size for string (max 40)
+;         pS = String pointer
+; Req...: LIBWIN.ACT
+;         LIBSTR.ACT
+; -------------------------------------- 
+BYTE FUNC GInput(BYTE bN,x,y,bT,bS CHAR POINTER pS)
+CHAR ARRAY cD(41),cE(128)
+BYTE bR,bD,bE,bK,bC,bL,bP
+
+; Set default return
+bR=FALSE
+
+; Set start display and edit positions
+bD=1
+bE=1
+
+; Copy original string to edit buffer
+SCopy(cE,pS)
+
+; Repeat until ESC or RETURN
+DO
+  ; Copy display string from edit buffer
+  SCopyS(cD,cE,bD,bD+bS-1)
+
+  ; Inverse the display string
+  StrInv(cD,bS)
+
+  ; Un-inverse the cursor char
+  cD(bE-bD+1)==!128  
+
+  ; Show display string
+  WPrint(bN, x, y, cD)
+
+  ; Wait for a keystroke
+  bK=WaitKCX()
+
+  ; Get ATASCII version of keystroke
+  bC=IKC2ATA(bK)
+
+  ; Is keystroke version RIGHT?
+  ; Move edit position
+  if bK=KRIGHT then
+    bE==+1
+
+  ; Is keystroke version LEFT?
+  ; Move edit position
+  elseif bK=KLEFT then
+    bE==-1
+
+  ; Is keystroke version Ctrl-Shft-S?
+  ; Go beginning
+  elseif bK=KS_CS then
+    bE=1
+
+  ; Is keystroke version Ctrl-Shft-E?
+  ; Go end
+  elseif bK=KE_CS then
+    bE=pS(0)
+
+  ; Is keystroke version DEL?
+  ; Set char to space, move position
+  elseif bK=KDEL then
+    ; Move edit and display positions if >1
+    if bE>1 then
+      bE==-1
+    fi
+    cE(bE)=32
+
+  ; Is keystroke version DEL_S?
+  ; Clear line (contents)
+  elseif bK=KDEL_S then
+    ; Edit buffer address+1, skip len byte
+    SetBlock(cE+1,pS(0),32)
+
+  ; Is keystroke version DEL_C?
+  ; Right delete
+  elseif bK=KDEL_C then
+    ; Copy each char to the char before
+    for bL=bE+1 to pS(0)
+    DO
+      cE(bL-1)=cE(bL)
+    OD
+
+    ; Set last char to space
+    bL=pS(0)
+    cE(bL)=32
+
+  ; Is keystroke version INS?
+  ; Right insert
+  elseif bK=KINS then
+    ; Only insert if not at end
+    if bE<pS(0) then
+      ; Copy each char to next position
+      ; Work from end to edit position
+      bL=pS(0)
+      DO
+        cE(bL)=cE(bL-1)
+        bL==-1
+      UNTIL bL=bE
+      OD
+
+      ; Put space in current position
+      cE(bE)=32
+    fi
+
+  ; Is keystroke version ENTER?
+  ; Copy edit buffer to original string, exit
+  elseif bK=KENTER then
+    SCopy(pS,cE)
+    bR=TRUE
+    exit
+
+  ; Is keystroke version ESC?
+  ; Restore original string to edit buffer, exit
+  elseif bK=KESC then
+    SCopy(cE,pS)
+    bR=XESC
+    exit
+
+  ; Is keystroke version TAB?
+  ; Restore original string to edit buffer, exit
+  elseif bK=KTAB then
+    SCopy(cE,pS)
+    bR=XTAB
+    exit
+
+  ; Is ATASCII code a printing character?
+  ; 0 (heart) not possible
+  elseif bC>=1 and bC<=191 then
+    ; Set add flag to false
+    bP=FALSE
+
+    ; Apply type restrictions
+    ; For ANY, allow all but cursor keys
+    if bT=GANY and (bC<=28 or bC>=32) then
+      bP=TRUE
+
+    ; For ALNUM, allow _ 0-9 A-Z a-z
+    elseif bT=GALNUM then
+      if bC=32 or (bC>=48 and bC<=57) or (bC>=65 and bC<=90) or (bC>=97 and bC<=122) then
+        bP=TRUE
+      fi 
+
+    ; For ALPHA, allow _ A-Z a-z
+    elseif bT=GALPHA then
+      if bC=32 or (bC>=65 and bC<=90) or (bC>=97 and bC<=122) then
+        bP=TRUE
+      fi
+
+    ; For NUMBER, allow . - 0-9
+    elseif bT=GNUMER then
+      if bC=45 or bC=46 or (bC>=48 and bC<=57) then
+        bP=TRUE
+      fi
+    fi
+
+    ; Replace char in edit buffer at edit position
+    if bP=TRUE then
+      cE(bE)=bC
+      bE==+1  
+    fi
+  fi
+
+  ; Check edit & display position extents
+
+  ; If edit > max len, set =
+  if bE > pS(0) then
+    bE=pS(0)
+
+  ; Or if < 1, set to 1
+  elseif bE < 1 then
+    bE=1
+  fi
+
+  ; If edit >= display size then display = edit-size
+  if bE >= bS then
+    bD=bE-bS+1
+
+  ; If edit < display size then display = 1
+  elseif bE < bS then
+    bD=1
+  fi
+OD
+
+; Get display string and print
+SCopyS(cD,cE,1,bS)
+WPrint(bN,x,y,cD)
+
+RETURN(bR)
+
+
+; --------------------------------------
+; Func..: GSpin(BYTE bN,x,y,bL,bM,bP)
+; Desc..: Displays value and spin 0 to 100
+; Params: bN = Window handle number
+;         x = Column of window to place spinner
+;         y = Row of window
+;         bL = Lowest value
+;         bM = Max value
+;         bP = initial value
+; Req...: LIBWIN.ACT
+;         LIBSTR.ACT
+; --------------------------------------
+BYTE FUNC GSpin(BYTE bN,x,y,bL,bM,bP)
+BYTE bD,bK,bR
+CHAR ARRAY cL(4)
+
+; Set working value
+bD=bP
+
+; Loop until exit
+DO
+  ; Convert to string & inverse
+  StrB(bD,cL)
+  StrPad(cL,32,3)
+  StrInv(cL,cL(0))
+
+  ; Print value at spot
+  WPrint(bN,x,y,cL)
+
+  ; Get key
+  bK=WaitKCX()
+
+  ; Process keystroke
+  if bK=KLEFT or bK=KPLUS or bK=KDOWN or bK=KEQUAL then
+    bD==-1
+    if bD<bL then bD=bL fi
+
+  elseif bK=KRIGHT or bK=KASTER or bK=KUP or bK=KMINUS then
+    bD==+1
+    if bD>bM then bD=bM fi
+
+  elseif bK=KESC then
+    bR=XESC 
+
+    ; Convert to string
+    StrB(bP,cL)
+
+    exit
+
+  elseif bK=KTAB then
+    bR=XTAB
+
+    ; Convert to string
+    StrB(bP,cL)
+
+    exit
+
+  elseif bK=KENTER then
+    ; Set return value
+    bR=bD
+
+    ; Convert to string
+    StrB(bD,cL)
+
+    exit
+  fi
+OD
+
+; Redisplay value
+StrPad(cL,32,3)
+WPrint(bN,x,y,cL)
+
+RETURN(bR)
+
+
+MODULE
+
+; Library: LIBMENUX.ACT
+; Author.: Wade Ripkowski
+; Desc...: Menu Routines-XL/XE
+; Date...: 2016.04
+; License: GNU General Public License v3.0
+; Revised: 2021.01.05 MenuV: Add -= to nav
+;          2021.01.12 MenuV: Fix item highlight width
+;          2021.01.20 MenuV: Uninverse on exit flag
+;                            Start item # param 
+;          2022.07.18 Use WaitKCX
+
+; Requires DEFINESX.ACT be loaded 1st!
+; Requires LIBWIN.ACT be loaded 1st!
+
+; --------------------------------------
+; Proc..: MenuV(BYTE bN,x,y,bI,bD,bS CHAR POINTER pS)
+; Desc..: Vertical Menu
+; Params: bN = number of window handle
+;         x = column for cursor
+;         y = row for cursor
+;         bI = Uninverse flag (WINVON=on)
+;         bD = start item #
+;         bS = width of menu item
+;         pS = menu item string
+; --------------------------------------
+BYTE FUNC MenuV(BYTE bN,x,y,bI,bD,bS CHAR POINTER pS)
+  BYTE bL,bR,bP,bC,bT,bK
+  CHAR ARRAY cL(39)
+
+  ; Set start item number 
+  bR=bD
+
+  ; Compute # items based on width
+  bC=pS(0)/bS
+           
+  ; Repeat until done
+  DO
+    ; Display each item
+    for bL=0 to bC        
+    DO
+      ; Compute menu item pos in pS 
+      bP=(bL*bS)+1
+                   
+      ; Copy menu item str from pS   
+      SCopyS(cL,pS,bP,bP+bS-1)    
+
+      ; If itm 1, inverse
+      if bL+1=bR then
+        for bT=1 to cL(0)
+        DO 
+          cL(bT)==!128
+        OD
+      fi
+      
+      ; Print item at row count
+      WPrint(bN,x,y+bL,cL)
+    OD
+
+    ; Get key     
+    bK=WaitKCX()
+
+    ; Process key
+    if bK=KDOWN or bK=KEQUAL or bK=KRIGHT or bK=KASTER then
+      bR==+1
+      if bR>bC then bR=1 fi
+
+    elseif bK=KUP or bK=KMINUS or bK=KLEFT or bK=KPLUS then
+      bR==-1
+      if bR<1 then bR=bC fi 
+    fi
+
+    ; Set last selected item before
+    ; checking ESC/TAB/ENTER
+    bL=bR
+
+    ; If ESC, set choice to XESC (0)
+    if bK=KESC then
+      bR=XESC
+      exit
+            
+    ; For TAB, set choice to XTAB (99)
+    elseif bK=KTAB then
+      bR=XTAB
+      exit
+
+    elseif bK=KENTER then
+      exit
+    fi
+  OD
+
+  ; Uninverse last selection if asked
+  if bI=WOFF then
+    bP=((bL-1)*bS)+1
+    SCopyS(cL,pS,bP,bP+bS-1)
+    WPrint(bN,x,y+bL-1,cL)
+  fi
+RETURN(bR)
+
+MODULE
